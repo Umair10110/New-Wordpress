@@ -62,7 +62,7 @@ $output .= '</ol>';
 add_action('admin_post_submit_data', 'handle_data_submission');
 add_action('admin_post_nopriv_submit_data', 'handle_data_submission');
 function handle_data_submission() {
-    
+  
     $title = sanitize_text_field($_POST['title']);
     $completed = ($_POST['completed'] === 'true') ? true : false;
     
@@ -94,54 +94,16 @@ function handle_data_submission() {
 }
 
 
-function custom_table_shortcode($atts) {
-    $atts = shortcode_atts(array(
-        'table' => '', 
-    ), $atts);
-    
-    global $wpdb;
-    $table_name = $wpdb->prefix . $atts['table'];
-    
-    $data = $wpdb->get_results("SELECT * FROM $table_name", ARRAY_A);
-    
-    $output = '<ul>';
-    foreach ($data as $row) {
-        $output .= '<li>' . esc_html($row['column_name']) . '</li>';
-    }
-    $output .= '</ul>';
-    
-    // return $output;
-    echo $output;
-}
-add_shortcode('custom_table', 'custom_table_shortcode');
 
-function custom_table_endpoint_callback($request) {
-    $table_name = $request['table'];
-    
-    global $wpdb;
-    $table_name = $wpdb->prefix . $table_name;
-    
-    $data = $wpdb->get_results("SELECT * FROM $table_name", ARRAY_A);
-    
-    return rest_ensure_response($data);
-}
-
-function register_custom_table_endpoint() {
-    register_rest_route('custom/v1', 'table/(?P<table>[a-zA-Z0-9-]+)', array(
-        'methods' => 'GET',
-        'callback' => 'custom_table_endpoint_callback',
-    ));
-}
-add_action('rest_api_init', 'register_custom_table_endpoint');
 
 function custom_data_endpoint_callback($request) {
-    // Get parameters from the request
+    
     $table = $request->get_param('table');
 
     global $wpdb;
     $table_name = $wpdb->prefix . $table;
 
-    // Perform the database query
+    
     $data = $wpdb->get_results("SELECT * FROM $table_name", ARRAY_A);
 
     return rest_ensure_response($data);
@@ -155,6 +117,53 @@ function register_custom_data_endpoint() {
 }
 add_action('rest_api_init', 'register_custom_data_endpoint');
 
+
+
+function custom_endpoint_init() {
+    add_rewrite_rule('^store-data/([^/]+)/([^/]+)/?','index.php?custom_table=$matches[1]&data=$matches[2]','top');
+}
+add_action('init', 'custom_endpoint_init');
+function handle_custom_endpoint() {
+    global $wp_query;
+
+    if (isset($wp_query->query_vars['custom_table']) && isset($wp_query->query_vars['data'])) {
+        $table_name = $wp_query->query_vars['custom_table'];
+        $data_to_store = sanitize_text_field($wp_query->query_vars['data']);
+
+        
+        global $wpdb;
+        $full_table_name = $wpdb->prefix . $table_name;
+        $wpdb->insert($full_table_name, array('column_name' => $data_to_store));
+
+       
+        wp_redirect(home_url()); 
+        exit();
+    }
+}
+add_action('template_redirect', 'handle_custom_endpoint');
+
+
+// add_action( 'rest_api_init', function () {
+//     register_rest_route( 'myplugin/v1', '/store-data/(?P<table>\w+)', array(
+//       'methods' => 'POST',
+//       'callback' => 'myplugin_store_data',
+//     ) );
+//   } );
+  
+//   function myplugin_store_data( $request ) {
+//     $table = $request->get_param( 'table' );
+//     $data = $request->get_body_params();
+  
+//     global $wpdb;
+//     $result = $wpdb->insert( $wpdb->prefix . $table, $data );
+  
+//     if ( $result ) {
+//       return new WP_REST_Response( array( 'success' => true ), 200 );
+//     } else {
+//       return new WP_Error( 'database_error', 'Failed to store data', array( 'status' => 500 ) );
+//     }
+//   }
+  
 
 ?>
 
